@@ -26,7 +26,8 @@ plate_detector = load_plate_detector()
 # Ollama Bağlantısı Kontrol Et
 try:
     r = requests.get("http://localhost:11434/api/tags")
-    available_models = [m["name"] for m in r.json().get("models", [])]
+    # LLaVA modellerini hariç tut (başarımı düşük olduğu için)
+    available_models = [m["name"] for m in r.json().get("models", []) if "llava" not in m["name"].lower()]
 except:
     available_models = []
     st.error("❌ Ollama sunucusu çalışmıyor! `ollama serve` komutunu çalıştırın.")
