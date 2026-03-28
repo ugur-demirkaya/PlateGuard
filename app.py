@@ -53,20 +53,19 @@ def analyze_with_ollama(image, model):
     img_buffer.seek(0)
     image_base64 = base64.b64encode(img_buffer.getvalue()).decode()
     
-    prompt = """This is a Turkish vehicle license plate. Please analyze the following:
-1. Are the characters (letters and numbers) bolder/thicker than standard?
-2. Are the character edges sharp and angular, or rounded?
-3. Are the characters closer together than normal?
-4. Is there a blue European strip with 'TR' marking on the left side?
-5. Does the plate look official with proper seal/hologram marks?
+    prompt = """Examine this cropped Turkish vehicle license plate image. Your task is to classify it strictly as either a 'Standard Plate' or an 'APP Plate'.
 
-If the font is very bold, edges are sharp/angular, and characters are tightly spaced, classify as 'APP Plate' (illegal aftermarket plate).
-If everything looks standard and official, classify as 'Standard Plate'.
+Key differences you MUST look for:
+- Standard Plate (Normal): The black letters and numbers are relatively THIN, have a standard machine-pressed aesthetic, normal spacing, and do not look excessively blackened.
+- APP Plate (Modified/Counterfeit): The black characters are unusually BOLD, blocky, very THICK, and strictly angular. The text often looks heavily painted or intensely custom-made.
+
+CRITICAL INSTRUCTION: Analyze the THICKNESS of the black characters. Just because it's a license plate doesn't mean it's 'APP'. If the font has normal, thinner strokes, it MUST be classified as a 'Standard Plate'. Only classify as 'APP Plate' if the characters are glaringly thick/bold.
 
 Reply with EXACTLY this format:
 CLASS: [APP Plate / Standard Plate]
 CONFIDENCE: [%]
-DETAIL: [explanation]"""
+DETAIL: [Explain your reasoning based ONLY on character thickness and font styling]"""
+
     
     try:
         payload = {
