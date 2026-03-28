@@ -5,7 +5,6 @@ from PIL import Image
 import cv2
 import numpy as np
 import io
-import re
 from plate_detector import PlateDetector, crop_plate_region
 
 # Sayfa Ayarları
@@ -27,8 +26,7 @@ plate_detector = load_plate_detector()
 # Ollama Bağlantısı Kontrol Et
 try:
     r = requests.get("http://localhost:11434/api/tags")
-    # LLaVA modellerini hariç tut (başarımı düşük olduğu için)
-    available_models = [m["name"] for m in r.json().get("models", []) if "llava" not in m["name"].lower()]
+    available_models = [m["name"] for m in r.json().get("models", [])]
 except:
     available_models = []
     st.error("❌ Ollama sunucusu çalışmıyor! `ollama serve` komutunu çalıştırın.")
@@ -55,21 +53,20 @@ def analyze_with_ollama(image, model):
     img_buffer.seek(0)
     image_base64 = base64.b64encode(img_buffer.getvalue()).decode()
     
-    prompt = """This is a Turkish vehicle license plate. Please analyze the following:
-1. Are the characters (letters and numbers) bolder/thicker than standard?
-2. Are the character edges sharp and angular, or rounded?
-3. Are the characters closer together than normal?
-4. Is there a blue European strip with 'TR' marking on the left side?
-5. Does the plate look official with proper seal/hologram marks?
+    prompt = """Examine this cropped Turkish vehicle license plate image. Your task is to classify it strictly as either a 'Standard Plate' or an 'APP Plate'.
 
-If the font is very bold, edges are sharp/angular, and characters are tightly spaced, classify as 'APP Plate' (illegal aftermarket plate).
-If everything looks standard and official, classify as 'Standard Plate'.
+Key differences you MUST look for:
+- Standard Plate (Normal): The black letters and numbers are relatively THIN, have a standard machine-pressed aesthetic, normal spacing, and do not look excessively blackened.
+- APP Plate (Modified/Counterfeit): The black characters are unusually BOLD, blocky, very THICK, and strictly angular. The text often looks heavily painted or intensely custom-made.
 
-Reply with:
+CRITICAL INSTRUCTION: Analyze the THICKNESS of the black characters. Just because it's a license plate doesn't mean it's 'APP'. If the font has normal, thinner strokes, it MUST be classified as a 'Standard Plate'. Only classify as 'APP Plate' if the characters are glaringly thick/bold.
+
+Reply with EXACTLY this format:
 CLASS: [APP Plate / Standard Plate]
-CONFIDENCE: [percentage, e.g. 85%]
-DETAIL: [brief explanation]"""
+CONFIDENCE: [%]
+DETAIL: [Explain your reasoning based ONLY on character thickness and font styling]"""
 
+    
     try:
         payload = {
             "model": model,
@@ -82,45 +79,11 @@ DETAIL: [brief explanation]"""
         
         if response.status_code == 200:
             result = response.json()
-            return parse_moondream_response(result.get("response", ""))
+            return result.get("response", "Cevap alınamadı.")
         else:
             return f"Hata: {response.status_code} - {response.text}"
     except Exception as e:
         return f"Bağlantı hatası: {str(e)}"
-
-def parse_moondream_response(response: str) -> dict:
-    """Model yanıtını yapılandırılmış formata dönüştürür."""
-    result = {
-        "classification": "Belirsiz",
-        "confidence": 0.0,
-        "details": "",
-        "raw_response": response,
-    }
-
-    text = response.strip().upper()
-
-    # Sınıflandırma tespiti
-    if "APP" in text:
-        result["classification"] = "APP Plaka"
-    elif any(w in text for w in ["STANDARD", "STANDART", "OFFICIAL", "NİZAMİ", "NORMAL"]):
-        result["classification"] = "Standart Plaka"
-
-    # Güven skoru çıkarma
-    confidence_match = re.search(r'%\s*(\d+)|(\d+)\s*%', response)
-    if confidence_match:
-        conf_str = confidence_match.group(1) or confidence_match.group(2)
-        result["confidence"] = min(float(conf_str) / 100.0, 1.0)
-    else:
-        result["confidence"] = 0.7 if result["classification"] != "Belirsiz" else 0.3
-
-    # Detay çıkarma
-    detail_match = re.search(r'DETAIL[:\s]*(.+)', response, re.IGNORECASE | re.DOTALL)
-    if detail_match:
-        result["details"] = detail_match.group(1).strip()
-    else:
-        result["details"] = response[:300] if len(response) > 300 else response
-
-    return result
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
@@ -137,19 +100,16 @@ if uploaded_file is not None:
             st.subheader(f"🔍 {model_choice} ile Tam Fotoğraf Analizi")
             
             with st.spinner(f"🚀 Ollama [{model_choice}] analiz ediyor..."):
-                result_dict = analyze_with_ollama(image, model_choice)
-                if isinstance(result_dict, dict):
-                    st.markdown(f"**VLM Analiz Sonucu:** ({result_dict['confidence']*100:.0f}%)  \n{result_dict['details']}")
-                    cls = result_dict['classification']
-                    if "APP" in cls.upper():
+                result = analyze_with_ollama(image, model_choice)
+                if isinstance(result, str):
+                    st.success(f"**Sonuç:**\n\n{result}")
+                    if "APP" in str(result).upper():
                         st.snow()
                         st.warning("🚗 **SİSTEMİN KARARI: APP PLAKA** (Modifiye / Özel)")
-                    elif "STANDART" in cls.upper() or "STANDARD" in cls.upper():
+                    elif "STANDARD" in str(result).upper() or "STANDART" in str(result).upper():
                         st.info("📋 **SİSTEMİN KARARI: STANDART PLAKA** (Resmi)")
-                    else:
-                        st.error(f"❗ **KARAR: BELİRSİZ**\n\n_Detay:_ {result_dict['raw_response']}")
                 else:
-                    st.error(f"Beklenmeyen bir sonuç döndü: {result_dict}")
+                    st.error(f"Beklenmeyen bir sonuç döndü: {result}")
         else:
             st.success(f"✅ Görüntüde toplam {len(plates)} adet plaka tespit edildi!")
             st.markdown("---")
@@ -174,21 +134,17 @@ if uploaded_file is not None:
                     
                     with col_res:
                         with st.spinner(f"🚀 Ollama [{model_choice}] bu plakayı analiz ediyor..."):
-                            result_dict = analyze_with_ollama(plate_img, model_choice)
+                            result = analyze_with_ollama(plate_img, model_choice)
                             
-                            if isinstance(result_dict, dict):
-                                st.markdown(f"**Güven Skoru (%):** {result_dict['confidence']*100:.0f}")
-                                st.markdown(f"**Açıklama:** {result_dict['details']}")
+                            if isinstance(result, str):
+                                st.markdown(f"**VLM Analiz Sonucu:**  \n```\n{result}\n```")
                                 
-                                cls = result_dict['classification']
-                                if "APP" in cls.upper():
+                                if "APP" in str(result).upper():
                                     st.warning(f"🚗 **KARAR [Plaka #{idx+1}]: APP PLAKA** (Modifiye / Özel)")
-                                elif "STANDART" in cls.upper() or "STANDARD" in cls.upper():
+                                elif "STANDARD" in str(result).upper() or "STANDART" in str(result).upper():
                                     st.info(f"📋 **KARAR [Plaka #{idx+1}]: STANDART PLAKA** (Resmi)")
-                                else:
-                                    st.error(f"❗ **KARAR [Plaka #{idx+1}]: BELİRSİZ**\n\n_Detay:_ {result_dict['raw_response']}")
                             else:
-                                st.error(f"Hata: {result_dict}")
+                                st.error(f"Hata: {result}")
                 else:
                     st.warning(f"❗ Plaka #{idx+1} için hatalı koordinat sınırları (Geçildi).")
                 
