@@ -2,9 +2,10 @@
   "name": "PlateGuard",
   "image": "mcr.microsoft.com/devcontainers/python:3.10-bullseye",
   "features": {
-    "ghcr.io/devcontainers/features/git:1": {}
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
   },
-  "postCreateCommand": "bash -c 'pip install --upgrade pip && pip install -r requirements.txt && curl -fsSL https://ollama.com/install.sh | sh && echo \"✅ PlateGuard environment ready!\"'",
+  "postCreateCommand": "bash -c 'pip install --upgrade pip && pip install -r requirements.txt && echo \"✅ PlateGuard environment ready!\"'",
   "customizations": {
     "vscode": {
       "extensions": [
