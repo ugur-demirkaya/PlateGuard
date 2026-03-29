@@ -175,7 +175,22 @@ docker run -d --name ollama -p 11434:11434 ollama/ollama
 
 ## 📄 Lisans
 
-Bu proje açık kaynaktır. Lütfen katkılarınız için PR gönderin!
+**Bu proje CC-BY-NC (Creative Commons Attribution - NonCommercial 4.0) lisansı altında yayınlanmıştır.**
+
+👉 [LICENSE](LICENSE) dosyasını okuyun.
+
+### ✅ Yapabilecekleriniz:
+- Eğitim ve öğrenme amaçlı kullanım
+- Hobi projeleri
+- Araştırma çalışmaları
+- Açık kaynak katkıları
+
+### ❌ Yapamayacakları:
+- Ticari satış veya hizmet sunumu
+- Kurumsal/şirket ortamında kar amacıyla kullanım
+- SaaS platformu olarak sunumu
+
+**Kısaca:** Herkese açık, ama kimse bundan para kazanmasın! 💚
 
 ---
 
